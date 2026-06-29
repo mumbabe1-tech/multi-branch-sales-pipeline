@@ -253,3 +253,31 @@ MeridianMarkt/
 ├── extract_references.py       # Component truncating and reloading the 4 reference sheets
 ├── extract.log                # Ingestion pipeline execution audit trail log
 └── README.md                  # Project overview and system documentation
+
+
+Key Learnings
+
+Automated Data Consolidation:  
+Experience gained in building a unified Python pipeline (extract_all.py) that loops through multiple distributed Google Sheets and centralizes fragmented branch data into a single PostgreSQL source of truth.
+
+Schema Governance & Header Normalization:  
+Understanding developed around managing inconsistent field names (Data Inconsistency / Naming Inconsistency) by applying header‑normalization logic to convert user‑edited column names into a consistent canonical schema. Metadata fields such as store_id and source_sheet were added during ingestion to maintain clear lineage and auditability.
+
+Defensive Staging Architecture:  
+A two‑layer database approach was applied: raw tables accept TEXT‑based ingestion, while staging tables enforce strong data types, ranges, and constraints. This structure protects downstream transformations by validating data before analytical use.
+
+API Ingestion Etiquette:  
+Practical knowledge gained in handling API rate limits by introducing controlled pacing between Google Sheets API requests to avoid quota errors and ensure stable extraction runs.
+
+Challenges Faced & Overcame 
+API Quota Restrictions (HTTP 429):  
+Google Sheets API rate limits were encountered when accessing multiple store sheets in quick succession. Stability was restored by adding short pauses between requests to prevent threshold violations.
+
+Source Column Drift:  
+Store forms used inconsistent column labels (e.g., Product Sold, Item, product_name). A dictionary‑based mapping system was implemented to translate all variations into a unified set of canonical column names.
+
+Data Type Discrepancies:  
+Raw logs arrived as mixed strings, causing issues for numeric and timestamp fields. SQL CHECK constraints in the staging schema were used to enforce valid ranges (e.g., quantity 1–20, approved payment methods) and block invalid rows.
+
+pgAdmin Syntax Highlighting Issues:  
+Occasional syntax errors occurred due to partial query highlighting or decorative comments. Running full scripts using clean, unselected execution resolved these parsing issues.
