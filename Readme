@@ -1,0 +1,246 @@
+Overview
+This project centralises sales and reference data from all 11 MeridianMart branches into a single PostgreSQL warehouse. The pipeline follows a simple ELT pattern:
+
+Extract raw rows from 11 transactional Google Sheets + 4 reference sheets
+
+Load them unmodified into the raw schema in PostgreSQL
+
+Transform everything inside Postgres using SQL (staging → marts → reporting)
+
+The goal is to replace 11 disconnected spreadsheets with one validated, queryable source of truth for store, regional, and product performance.
+
+Data Sources
+Transactional Data (11 Sheets)
+Each store has its own Google Form for logging sales. Every line item becomes a row in that store’s response sheet.
+
+Captured fields include:
+
+Product sold
+
+Quantity
+
+Payment method
+
+Receipt number
+
+Optional customer phone number
+
+Timestamp
+
+Staff name (free text)
+
+Reference Data (4 Sheets)
+Centrally maintained Google Sheets:
+
+Product Master (65 products, 15 categories, GHS pricing, manager audit trail)
+
+Staff Master (90 staff, roles, store assignment)
+
+Managers Master (25 managers, hierarchy, store/region assignment)
+
+Stores Master (11 branches, city, region grouping)
+
+Pipeline Architecture
+Extraction Layer (Python)
+A Python script (Google Sheets API + SQLAlchemy/psycopg2) performs:
+
+Authentication
+
+Pulling all 15 sheets
+
+Loading each sheet as‑is into its matching raw.* table
+
+No joins, no transformations, no cleaning at this stage
+
+Daily automation via cron
+
+Database Layers
+Layer	Purpose
+raw	Direct dumps of Google Sheets (untouched)
+staging	Constraints, validation, referential checks
+marts	Star schema: fact + dimensions
+reporting	Aggregated tables for BI consumption
+
+
+Core Tables (Data Dictionary)
+fact_transactions
+Central fact table built after validation and reference resolution.
+
+Primary Key: transaction_key (surrogate)
+Foreign Keys:
+
+store_id → dim_stores
+
+staff_id → dim_staff
+
+product_id → dim_products
+
+date_key → dim_date
+
+Key Columns
+
+receipt_no — cashier-entered basket ID
+
+sale_timestamp — raw Form timestamp
+
+quantity — units purchased
+
+unit_price_ghs — resolved via product join
+
+total_amount_ghs — computed
+
+payment_method — Cash / Card / Transfer
+
+customer_phone — optional, used to derive customers
+
+dim_products
+Product catalogue with pricing and manager attribution.
+
+Primary Key: product_id  
+Foreign Key: updated_by → dim_managers
+
+Columns include:
+
+product_name
+
+category
+
+unit_price_ghs
+
+last_updated
+
+updated_by
+
+dim_staff
+Full staff roster used to resolve raw Staff Name entries.
+
+Primary Key: staff_id  
+Foreign Key: store_id → dim_stores
+
+Columns include:
+
+full_name
+
+role
+
+store_id
+
+phone_number
+
+employment_status
+
+dim_managers
+Management hierarchy (Store, Assistant, Regional).
+
+Primary Key: manager_id  
+Foreign Key: reports_to → dim_managers (self‑reference)
+
+Columns include:
+
+full_name
+
+role
+
+store_id or region
+
+email
+
+date_appointed
+
+dim_stores
+Reference table for all 11 branches.
+
+Primary Key: store_id
+
+Columns include:
+
+city
+
+region (Southern, Middle Belt, Northern)
+
+dim_customers
+Derived dimension created by deduplicating phone numbers.
+
+Primary Key: customer_id (surrogate)
+
+Columns include:
+
+phone_number
+
+first_seen_date
+
+total_visits
+
+Entity Relationships (Star Schema)
+fact_transactions → dim_stores (N:1)
+
+fact_transactions → dim_staff (N:1)
+
+fact_transactions → dim_products (N:1)
+
+fact_transactions → dim_date (N:1)
+
+dim_staff → dim_stores (N:1)
+
+dim_managers → dim_stores (N:1 for Store/Assistant)
+
+dim_managers → dim_managers (self-referencing hierarchy)
+
+dim_products → dim_managers (price updates)
+
+Data Flow Summary
+Cashiers submit Google Forms → Sheets accumulate raw rows
+
+Python script extracts all sheets daily
+
+Raw tables receive unmodified data
+
+Staging tables apply constraints and validation
+
+SQL transformations build fact + dimensions
+
+Reporting schema produces daily/weekly/monthly summaries
+
+Data Integrity
+Enforced via Postgres:
+CHECK constraints (e.g., quantity 1–20)
+
+Foreign keys (product, staff, store must exist)
+
+NOT NULL rules
+
+Additional validation:
+audit.validation_log records issues such as:
+
+Duplicate receipt numbers
+Slightly mismatched product/staff names across stores
+
+Project Objectives
+1. Centralise All 11 Store Sources
+Daily extraction of all store sheets + 4 reference sheets into Postgres.
+
+2. Enforce Data Quality at the Database Layer
+Use constraints + validation scripts to catch structural and referential issues.
+
+3. Build a Full Star Schema in SQL
+Create fact and dimension tables directly inside Postgres.
+
+4. Resolve Price & Category via Join
+Ensure pricing comes from the Product Master, not the sales form.
+
+5. Build Cross‑Branch Reporting
+Daily sales, regional rollups, top products, payment mix.
+
+6. Automate the Daily Run
+Cron‑scheduled Python runner orchestrates extraction → validation → transformation.
+
+Why This Approach Works
+Lean stack (Python + SQL)
+
+No vendor lock‑in
+
+Full control over validation and transformation
+
+Scales cleanly as stores or sheets increase
+
+Replaces manual spreadsheet reconciliation with a single warehouse
