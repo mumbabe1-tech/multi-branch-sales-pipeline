@@ -244,3 +244,12 @@ Full control over validation and transformation
 Scales cleanly as stores or sheets increase
 
 Replaces manual spreadsheet reconciliation with a single warehouse
+
+
+MeridianMarkt/
+├── .env                       # Database connection parameters & user credentials
+├── raw_schema.sql             # Database DDL defining the raw schema staging tables
+├── extract_transactions.py     # Component extracting and unioning the 11 store sheets
+├── extract_references.py       # Component truncating and reloading the 4 reference sheets
+├── extract.log                # Ingestion pipeline execution audit trail log
+└── README.md                  # Project overview and system documentation
